@@ -10,9 +10,24 @@ import {
 } from "./rooms";
 import { normalizeNoteName } from "./utils";
 import { NoteSettings } from "../types/socket";
+import { SOCKET_EVENTS } from "@ameetrise/core-lib";
 
 export const registerSocketHandlers = (io: Server, socket: Socket) => {
-  socket.on("create_host", (settings: NoteSettings) => {
+  const {
+    CREATE_HOST,
+    HOST_CREATED,
+    CLOSE_ROOM,
+    ROOM_AVAILABLE,
+    JOIN_ANY,
+    JOINER_CONNECTED,
+    JOINED_ROOM,
+    NOTE_ANSWER,
+    NEW_NOTE,
+    CORRECT_NOTE,
+    WRONG_NOTE,
+    DISCONNECT,
+  } = SOCKET_EVENTS;
+  socket.on(CREATE_HOST, (settings: NoteSettings) => {
     const roomId = `room-${Math.random().toString(36).substring(2, 8)}`;
     rooms[roomId] = { hostId: socket.id };
     roomSettings[roomId] = settings;
@@ -28,13 +43,13 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
     currentNotes[roomId] = note;
     previousNotes[roomId] = note;
 
-    socket.emit("host_created", { roomId });
-    socket.broadcast.emit("room_available", { roomId });
+    socket.emit(HOST_CREATED, { roomId });
+    socket.broadcast.emit(ROOM_AVAILABLE, { roomId });
 
     console.log(`🎼 Host created room: ${roomId}`);
   });
 
-  socket.on("join_any", () => {
+  socket.on(JOIN_ANY, () => {
     const availableRoom = Object.entries(rooms).find(
       ([_, room]) => !room.joinerId
     );
@@ -47,9 +62,9 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
       const note = currentNotes[roomId];
       const clef = noteToMidi(note) >= noteToMidi("C4") ? "treble" : "bass";
 
-      io.to(roomData.hostId).emit("joiner_connected", { joinerId: socket.id });
-      socket.emit("joined_room", { roomId });
-      io.to(roomId).emit("new_note", { note, clef });
+      io.to(roomData.hostId).emit(JOINER_CONNECTED, { joinerId: socket.id });
+      socket.emit(JOINED_ROOM, { roomId });
+      io.to(roomId).emit(NEW_NOTE, { note, clef });
 
       console.log(`🎹 Joiner joined room: ${roomId}`);
     } else {
@@ -57,7 +72,7 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
     }
   });
 
-  socket.on("note_answer", ({ roomId, answer }) => {
+  socket.on(NOTE_ANSWER, ({ roomId, answer }) => {
     const current = currentNotes[roomId];
     const settings = roomSettings[roomId];
     if (!current || !settings) return;
@@ -65,7 +80,7 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
     const correct = normalizeNoteName(answer) === normalizeNoteName(current);
 
     if (correct) {
-      socket.emit("correct_note", { note: current });
+      socket.emit(CORRECT_NOTE, { note: current });
 
       const { note: nextNote, clef } = generateRandomNote({
         selectedClefs: settings.selectedClefs,
@@ -76,17 +91,17 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
 
       currentNotes[roomId] = nextNote;
       previousNotes[roomId] = nextNote;
-      io.to(roomId).emit("new_note", { note: nextNote, clef });
+      io.to(roomId).emit(NEW_NOTE, { note: nextNote, clef });
     } else {
-      socket.emit("wrong_note", { expected: current, received: answer });
+      socket.emit(WRONG_NOTE, { expected: current, received: answer });
     }
   });
 
-  socket.on("close_room", ({ roomId }) => {
+  socket.on(CLOSE_ROOM, ({ roomId }) => {
     closeRoom(io, roomId);
   });
 
-  socket.on("disconnect", () => {
+  socket.on(DISCONNECT, () => {
     for (const [roomId, data] of Object.entries(rooms)) {
       if (data.hostId === socket.id || data.joinerId === socket.id) {
         closeRoom(io, roomId);

@@ -4,6 +4,7 @@ import { Server as SocketIOServer } from "socket.io";
 import dotenv from "dotenv";
 import cors from "cors";
 import { registerSocketHandlers } from "./socket/handlers";
+import { SOCKET_EVENTS } from "@ameetrise/core-lib";
 
 dotenv.config();
 
@@ -18,7 +19,7 @@ const io = new SocketIOServer(server, {
 
 const PORT = process.env.PORT || 5000;
 
-io.on("connection", (socket) => {
+io.on(SOCKET_EVENTS.CONNECTION, (socket) => {
   console.log("🟢 Connected:", socket.id);
   registerSocketHandlers(io, socket);
 });
