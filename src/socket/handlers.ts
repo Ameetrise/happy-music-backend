@@ -1,5 +1,9 @@
 import { Socket, Server } from "socket.io";
-import { generateRandomNote } from "@ameetrise/core-lib";
+import {
+  generateRandomNote,
+  normalizeNoteName,
+  STRINGS,
+} from "@ameetrise/core-lib";
 import { noteToMidi } from "../utils/noteUtils";
 import {
   rooms,
@@ -8,7 +12,6 @@ import {
   previousNotes,
   closeRoom,
 } from "./rooms";
-import { normalizeNoteName } from "./utils";
 import { NoteSettings } from "../types/socket";
 import { SOCKET_EVENTS } from "@ameetrise/core-lib";
 
@@ -26,7 +29,9 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
     CORRECT_NOTE,
     WRONG_NOTE,
     DISCONNECT,
+    NO_ROOM_AVAILABLE,
   } = SOCKET_EVENTS;
+  const { treble, bass } = STRINGS;
   socket.on(CREATE_HOST, (settings: NoteSettings) => {
     const roomId = `room-${Math.random().toString(36).substring(2, 8)}`;
     rooms[roomId] = { hostId: socket.id };
@@ -60,7 +65,7 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
       socket.join(roomId);
 
       const note = currentNotes[roomId];
-      const clef = noteToMidi(note) >= noteToMidi("C4") ? "treble" : "bass";
+      const clef = noteToMidi(note) >= noteToMidi("C4") ? treble : bass;
 
       io.to(roomData.hostId).emit(JOINER_CONNECTED, { joinerId: socket.id });
       socket.emit(JOINED_ROOM, { roomId });
@@ -68,7 +73,7 @@ export const registerSocketHandlers = (io: Server, socket: Socket) => {
 
       console.log(`🎹 Joiner joined room: ${roomId}`);
     } else {
-      socket.emit("no_room_available");
+      socket.emit(NO_ROOM_AVAILABLE);
     }
   });
 
